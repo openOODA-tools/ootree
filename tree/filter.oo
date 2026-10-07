@@ -1,0 +1,74 @@
+// # Tree Filtering - Directory Entry Selection
+//
+// Logline: Filters raw filesystem entry lists according to visibility and kind rules.
+//
+// Setup: Requires FsReadCap. Zero ambient authority.
+//
+// Beats:
+//   1. Identify and exclude pseudo-directories and pruned caches.
+//   2. Apply hidden entry rules and directories-only restrictions.
+//   3. Separate directories and regular files, returning sorted entry names.
+
+import "std/fs/os/fs.oo";
+import "entry.oo";
+
+fn join_path(base: String, name: String) -> String {
+    if chars_len(base) == 0 { return name; }
+    if str_ends_with(base, "/") { return base + name; }
+    return base + "/" + name;
+}
+
+fn should_skip(name: String, show_all: Bool) -> Bool {
+    if name == "." || name == ".." || chars_len(name) == 0 { return true; }
+    if !show_all {
+        if str_starts_with(name, ".") { return true; }
+        if name == "node_modules" || name == "__pycache__" || name == "target" { return true; }
+    }
+    return false;
+}
+
+pub fn collect_children(
+    fs: &FsReadCap,
+    dir_path: String,
+    show_all: Bool,
+    dirs_only: Bool
+) -> List[String] {
+    let raw: List[String] = fs_read_dir(fs, dir_path);
+    let mut dirs_list: List[String] = list_new();
+    let mut files_list: List[String] = list_new();
+    let n: Int = list_len(raw);
+    let mut i: Int = 0;
+
+    while i < n {
+        let name: String = list_get(raw, i);
+        if !should_skip(name, show_all) {
+            let full: String = join_path(dir_path, name);
+            let is_dir: Bool = fs_is_dir(fs, full);
+            if is_dir {
+                dirs_list = list_push(dirs_list, name);
+            } else if !dirs_only {
+                files_list = list_push(files_list, name);
+            }
+        }
+        i = i + 1;
+    }
+
+    let sorted_dirs: List[String] = sort_names(dirs_list);
+    let sorted_files: List[String] = sort_names(files_list);
+
+    let mut out: List[String] = list_new();
+    let nd: Int = list_len(sorted_dirs);
+    let mut di: Int = 0;
+    while di < nd {
+        out = list_push(out, list_get(sorted_dirs, di));
+        di = di + 1;
+    }
+    let nf: Int = list_len(sorted_files);
+    let mut fi: Int = 0;
+    while fi < nf {
+        out = list_push(out, list_get(sorted_files, fi));
+        fi = fi + 1;
+    }
+
+    return out;
+}

@@ -1,0 +1,75 @@
+// # ootree Entry Point - Sovereign Directory Hierarchy Visualizer
+//
+// Logline: Argument gate, hierarchy traversal orchestrator, and tree layout renderer.
+//
+// Setup: Requires FsReadCap for filesystem scanning and ProcessCap to set exit code.
+//
+// Beats:
+//   1. Handle --help, --version, and --mcp early without side effects.
+//   2. Scan target directory hierarchy with bounded depth and filter rules.
+//   3. Render Unicode tree branches, file size badges, and summary metrics.
+
+import "std/fs/os/fs.oo";
+import "tree/anchor.oo";
+import "render/anchor.oo";
+import "ipc/anchor.oo";
+
+fn render_help() -> String {
+    return "Usage: ootree [OPTIONS] [DIRECTORY]\n\n" +
+        "Sovereign directory hierarchy and tree visualizer.\n\n" +
+        "Options:\n" +
+        "  -L <depth>             Descend only level directories deep\n" +
+        "  -a, --all              Print all files (including hidden files)\n" +
+        "  -d                     List directories only\n" +
+        "  -s                     Print the size in human-readable format\n" +
+        "  --theme=NAME           Override active palette (1982, dracula, etc.)\n" +
+        "  --mcp                  Start Model Context Protocol stdio server\n" +
+        "  -h, --help             Display this help message and exit\n" +
+        "  -v, --version          Print version information and exit\n";
+}
+
+pub fn main(fs: &FsReadCap, proc_cap: &ProcessCap, env: &EnvCap, args: List[String]) -> Result[Int, String] {
+    let opts: TreeOpts = parse_tree_args(args);
+
+    if opts.help_mode {
+        print(render_help());
+        return Ok(0);
+    }
+    if opts.version_mode {
+        println("ootree 0.1.0 (openOODA sovereign tree visualizer)");
+        return Ok(0);
+    }
+    if opts.mcp_mode {
+        run_mcp_server(fs);
+        return Ok(0);
+    }
+
+    let is_dir: Bool = fs_is_dir(fs, opts.root_path);
+    let sz: Int = fs_file_size(fs, opts.root_path);
+    if !is_dir && sz < 0 {
+        println("ootree: " + opts.root_path + ": No such file or directory");
+        process_exit(2);
+        return Ok(2);
+    }
+
+    println(style_entity_name(opts.root_path, true));
+    let init_stats: TreeStats = make_tree_stats();
+    let final_stats: TreeStats = render_tree_path(
+        fs,
+        opts.root_path,
+        "",
+        1,
+        opts.max_depth,
+        opts.show_all,
+        opts.dirs_only,
+        opts.show_sizes,
+        init_stats
+    );
+
+    println("");
+    let dir_label: String = if final_stats.dirs == 1 { " directory, " } else { " directories, " };
+    let file_label: String = if final_stats.files == 1 { " file" } else { " files" };
+    println(to_string(final_stats.dirs) + dir_label + to_string(final_stats.files) + file_label);
+
+    return Ok(0);
+}

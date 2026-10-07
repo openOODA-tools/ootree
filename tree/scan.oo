@@ -1,0 +1,53 @@
+// # Tree Metrics Scanner - Directory and File Statistics Aggregation
+//
+// Logline: Traverses directory hierarchies and counts directories and regular files.
+//
+// Setup: Requires FsReadCap. Respects depth ceilings and filtering rules.
+//
+// Beats:
+//   1. Collect filtered child entries for directory node.
+//   2. Accumulate directory and regular file metric tallies.
+//   3. Recurse down subdirectories within maximum depth ceiling.
+
+import "std/fs/os/fs.oo";
+import "entry.oo";
+import "filter.oo";
+
+fn join_subpath(base: String, name: String) -> String {
+    if chars_len(base) == 0 { return name; }
+    if str_ends_with(base, "/") { return base + name; }
+    return base + "/" + name;
+}
+
+pub fn count_tree_metrics(
+    fs: &FsReadCap,
+    path: String,
+    depth: Int,
+    max_depth: Int,
+    show_all: Bool,
+    dirs_only: Bool,
+    stats: TreeStats
+) -> TreeStats {
+    let mut cur: TreeStats = stats;
+    let children: List[String] = collect_children(fs, path, show_all, dirs_only);
+    let n: Int = list_len(children);
+    let mut i: Int = 0;
+
+    while i < n {
+        let name: String = list_get(children, i);
+        let full: String = join_subpath(path, name);
+        let is_dir: Bool = fs_is_dir(fs, full);
+
+        if is_dir {
+            cur.dirs = cur.dirs + 1;
+            if depth < max_depth {
+                cur = count_tree_metrics(fs, full, depth + 1, max_depth, show_all, dirs_only, cur);
+            }
+        } else {
+            cur.files = cur.files + 1;
+        }
+        i = i + 1;
+    }
+
+    return cur;
+}

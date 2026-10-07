@@ -1,0 +1,14 @@
+// # Tree Subsystem Anchor
+//
+// Logline: Re-exports tree entry statistics, filtering, and metric scanners.
+//
+// Setup: Pure shim re-exporting tree domain pages.
+//
+// Beats:
+//   1. Re-export entry models and string comparison.
+//   2. Re-export child filtering and ordering.
+//   3. Re-export tree metric counting logic.
+
+import "entry.oo";
+import "filter.oo";
+import "scan.oo";

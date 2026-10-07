@@ -1,0 +1,87 @@
+// # Tree Options - Command Line Flags and Operational Configuration
+//
+// Logline: Decodes command line arguments into structured options for ootree.
+//
+// Setup: Pure value type and parser. Zero ambient authority.
+//
+// Beats:
+//   1. Define TreeOpts struct encapsulating depth limits, display flags, and paths.
+//   2. Provide safe default initializer.
+//   3. Parse argument vector into validated TreeOpts model.
+
+pub type TreeOpts = struct {
+    root_path: String,
+    max_depth: Int,
+    show_all: Bool,
+    dirs_only: Bool,
+    show_sizes: Bool,
+    theme_override: String,
+    mcp_mode: Bool,
+    help_mode: Bool,
+    version_mode: Bool,
+    error_msg: String
+};
+
+pub fn tree_opts_default() -> TreeOpts {
+    return TreeOpts {
+        root_path: ".",
+        max_depth: 9999,
+        show_all: false,
+        dirs_only: false,
+        show_sizes: false,
+        theme_override: "",
+        mcp_mode: false,
+        help_mode: false,
+        version_mode: false,
+        error_msg: ""
+    };
+}
+
+fn parse_int_val(s: String) -> Int {
+    let n: Int = chars_len(s);
+    let mut val: Int = 0;
+    let mut i: Int = 0;
+    while i < n {
+        let b: Int = byte_at(char_at(s, i), 0);
+        if b >= 48 && b <= 57 {
+            val = val * 10 + (b - 48);
+        } else {
+            return val;
+        }
+        i = i + 1;
+    }
+    return val;
+}
+
+pub fn parse_tree_args(args: List[String]) -> TreeOpts {
+    let mut opts: TreeOpts = tree_opts_default();
+    let n: Int = list_len(args);
+    let mut i: Int = 0;
+    while i < n {
+        let arg: String = list_get(args, i);
+        if arg == "-h" || arg == "--help" {
+            opts.help_mode = true;
+            return opts;
+        } else if arg == "-v" || arg == "--version" {
+            opts.version_mode = true;
+            return opts;
+        } else if arg == "--mcp" {
+            opts.mcp_mode = true;
+        } else if arg == "-a" || arg == "--all" {
+            opts.show_all = true;
+        } else if arg == "-d" {
+            opts.dirs_only = true;
+        } else if arg == "-s" {
+            opts.show_sizes = true;
+        } else if arg == "-L" {
+            i = i + 1;
+            if i < n { opts.max_depth = parse_int_val(list_get(args, i)); }
+        } else if str_starts_with(arg, "--theme=") {
+            opts.theme_override = str_slice(arg, 8, chars_len(arg));
+        } else if !str_starts_with(arg, "-") {
+            opts.root_path = arg;
+        }
+        i = i + 1;
+    }
+    return opts;
+}

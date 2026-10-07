@@ -1,0 +1,14 @@
+Source: ootree
+Section: utils
+Priority: optional
+Maintainer: openOODA-tools <ops@openooda.org>
+Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13)
+
+Package: ootree
+Architecture: amd64
+Depends: libc6
+Description: Sovereign directory hierarchy and tree visualizer
+ A directory hierarchy visualizer written in pure openOODA, featuring negative-trust capability security, Unicode branch glyphs, oote palettes, and MCP stdio surface.
+ negative-trust capability security, syntax highlighting via oote themes,
+ line numbering, range windowing, and an MCP stdio surface.
