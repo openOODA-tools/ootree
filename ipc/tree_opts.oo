@@ -6,8 +6,9 @@
 //
 // Beats:
 //   1. Define TreeOpts struct encapsulating depth limits, display flags, and paths.
-//   2. Provide safe default initializer.
-//   3. Parse argument vector into validated TreeOpts model.
+//   2. Provide safe default initializer with robust baseline flags.
+//   3. Parse argument vector into validated TreeOpts model with full CLI parity.
+//   4. Support ASCII glyphs, JSON formatting, color suppression, and path modes.
 
 pub type TreeOpts = struct {
     root_path: String,
@@ -15,6 +16,10 @@ pub type TreeOpts = struct {
     show_all: Bool,
     dirs_only: Bool,
     show_sizes: Bool,
+    use_ascii: Bool,
+    no_color: Bool,
+    json_mode: Bool,
+    full_path: Bool,
     theme_override: String,
     mcp_mode: Bool,
     help_mode: Bool,
@@ -29,6 +34,10 @@ pub fn tree_opts_default() -> TreeOpts {
         show_all: false,
         dirs_only: false,
         show_sizes: false,
+        use_ascii: false,
+        no_color: false,
+        json_mode: false,
+        full_path: false,
         theme_override: "",
         mcp_mode: false,
         help_mode: false,
@@ -73,9 +82,20 @@ pub fn parse_tree_args(args: List[String]) -> TreeOpts {
             opts.dirs_only = true;
         } else if arg == "-s" {
             opts.show_sizes = true;
+        } else if arg == "-A" || arg == "--ascii" {
+            opts.use_ascii = true;
+        } else if arg == "--no-color" {
+            opts.no_color = true;
+        } else if arg == "--json" {
+            opts.json_mode = true;
+        } else if arg == "-f" || arg == "--full-path" {
+            opts.full_path = true;
         } else if arg == "-L" {
             i = i + 1;
             if i < n { opts.max_depth = parse_int_val(list_get(args, i)); }
+        } else if arg == "--theme" {
+            i = i + 1;
+            if i < n { opts.theme_override = list_get(args, i); }
         } else if str_starts_with(arg, "--theme=") {
             opts.theme_override = str_slice(arg, 8, chars_len(arg));
         } else if !str_starts_with(arg, "-") {

@@ -45,9 +45,48 @@ pub fn count_tree_metrics(
             }
         } else {
             cur.files = cur.files + 1;
+            let sz: Int = fs_file_size(fs, full);
+            if sz > 0 { cur.total_bytes = cur.total_bytes + sz; }
         }
         i = i + 1;
     }
 
     return cur;
+}
+
+pub fn find_tree_entries(
+    fs: &FsReadCap,
+    path: String,
+    query: String,
+    depth: Int,
+    max_depth: Int,
+    show_all: Bool
+) -> List[String] {
+    let mut matches: List[String] = list_new();
+    let children: List[String] = collect_children(fs, path, show_all, false);
+    let n: Int = list_len(children);
+    let mut i: Int = 0;
+
+    while i < n {
+        let name: String = list_get(children, i);
+        let full: String = join_subpath(path, name);
+        let is_dir: Bool = fs_is_dir(fs, full);
+
+        if chars_len(query) == 0 || str_index_of(name, query) >= 0 {
+            matches = list_push(matches, full);
+        }
+
+        if is_dir && depth < max_depth {
+            let sub: List[String] = find_tree_entries(fs, full, query, depth + 1, max_depth, show_all);
+            let nsub: Int = list_len(sub);
+            let mut si: Int = 0;
+            while si < nsub {
+                matches = list_push(matches, list_get(sub, si));
+                si = si + 1;
+            }
+        }
+        i = i + 1;
+    }
+
+    return matches;
 }

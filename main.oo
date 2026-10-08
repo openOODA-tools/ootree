@@ -6,8 +6,9 @@
 //
 // Beats:
 //   1. Handle --help, --version, and --mcp early without side effects.
-//   2. Scan target directory hierarchy with bounded depth and filter rules.
-//   3. Render Unicode tree branches, file size badges, and summary metrics.
+//   2. Resolve active theme from OODA_THEME or configuration file with overrides.
+//   3. Scan target directory hierarchy with bounded depth and filter rules.
+//   4. Render Unicode or ASCII tree branches, size badges, or JSON serialization.
 
 import "std/fs/os/fs.oo";
 import "tree/anchor.oo";
@@ -22,7 +23,11 @@ fn render_help() -> String {
         "  -a, --all              Print all files (including hidden files)\n" +
         "  -d                     List directories only\n" +
         "  -s                     Print the size in human-readable format\n" +
-        "  --theme=NAME           Override active palette (1982, dracula, etc.)\n" +
+        "  -A, --ascii            Use ASCII branch glyphs instead of UTF-8\n" +
+        "  -f, --full-path        Print the full path prefix for each file\n" +
+        "  --no-color             Turn off color output\n" +
+        "  --json                 Output directory hierarchy summary as JSON\n" +
+        "  --theme=NAME           Override active palette (dracula, cyberpunk, amber, etc.)\n" +
         "  --mcp                  Start Model Context Protocol stdio server\n" +
         "  -h, --help             Display this help message and exit\n" +
         "  -v, --version          Print version information and exit\n";
@@ -36,7 +41,7 @@ pub fn main(fs: &FsReadCap, proc_cap: &ProcessCap, env: &EnvCap, args: List[Stri
         return Ok(0);
     }
     if opts.version_mode {
-        println("ootree 0.1.0 (openOODA sovereign tree visualizer)");
+        println("ootree 0.2.0 (openOODA sovereign tree visualizer)");
         return Ok(0);
     }
     if opts.mcp_mode {
@@ -52,7 +57,18 @@ pub fn main(fs: &FsReadCap, proc_cap: &ProcessCap, env: &EnvCap, args: List[Stri
         return Ok(2);
     }
 
-    println(style_entity_name(opts.root_path, true));
+    let theme: String = resolve_tree_theme(fs, env, opts.theme_override);
+
+    if opts.json_mode {
+        let init_stats: TreeStats = make_tree_stats();
+        let stats: TreeStats = count_tree_metrics(
+            fs, opts.root_path, 1, opts.max_depth, opts.show_all, opts.dirs_only, init_stats
+        );
+        println(render_tree_stats_json(opts.root_path, stats));
+        return Ok(0);
+    }
+
+    println(style_entity_name(opts.root_path, true, opts.no_color, theme));
     let init_stats: TreeStats = make_tree_stats();
     let final_stats: TreeStats = render_tree_path(
         fs,
@@ -63,6 +79,10 @@ pub fn main(fs: &FsReadCap, proc_cap: &ProcessCap, env: &EnvCap, args: List[Stri
         opts.show_all,
         opts.dirs_only,
         opts.show_sizes,
+        opts.use_ascii,
+        opts.no_color,
+        opts.full_path,
+        theme,
         init_stats
     );
 

@@ -1,13 +1,14 @@
 // # Tree Formatter - Glyphs and Hierarchy Layout
 //
-// Logline: Formats filesystem hierarchies into Unicode branch trees with size badges.
+// Logline: Formats filesystem hierarchies into Unicode or ASCII branch trees.
 //
 // Setup: Pure layout and stream formatter. Requires FsReadCap. Zero ambient authority.
 //
 // Beats:
 //   1. Format human-readable file size badges with unit scaling.
-//   2. Recursively print tree branches using Unicode box glyphs.
+//   2. Recursively print tree branches using Unicode or ASCII box glyphs.
 //   3. Construct uncolored tree representations for Model Context Protocol streams.
+//   4. Support theme coloring, no-color suppression, and full-path display.
 
 import "std/fs/os/fs.oo";
 import "tree/entry.oo";
@@ -26,12 +27,15 @@ pub fn format_size(bytes: Int) -> String {
     return to_string(bytes / 1048576) + "M";
 }
 
-pub fn format_size_badge(bytes: Int) -> String {
-    let esc: String = ansi_esc();
-    let reset: String = term_reset();
+pub fn format_size_badge(bytes: Int, no_color: Bool) -> String {
     let sz: String = format_size(bytes);
     let mut padded: String = sz;
     while chars_len(padded) < 5 { padded = " " + padded; }
+    if no_color {
+        return "[" + padded + "] ";
+    }
+    let esc: String = ansi_esc();
+    let reset: String = term_reset();
     return esc + "[38;5;244m[" + padded + "] " + reset;
 }
 
@@ -44,9 +48,12 @@ pub fn render_tree_path(
     show_all: Bool,
     dirs_only: Bool,
     show_sizes: Bool,
+    use_ascii: Bool,
+    no_color: Bool,
+    full_path: Bool,
+    theme: String,
     stats: TreeStats
 ) -> TreeStats {
-    let esc: String = ansi_esc();
     let reset: String = term_reset();
     let children: List[String] = collect_children(fs, dir_path, show_all, dirs_only);
     let n: Int = list_len(children);
@@ -58,25 +65,45 @@ pub fn render_tree_path(
         let full: String = join_line_path(dir_path, name);
         let is_dir: Bool = fs_is_dir(fs, full);
         let is_last: Bool = (i == n - 1);
-        let branch_glyph: String = if is_last { "└── " } else { "├── " };
-        let branch_color: String = esc + "[38;5;240m" + branch_glyph + reset;
+
+        let branch_glyph: String = if use_ascii {
+            if is_last { "\\-- " } else { "|-- " }
+        } else {
+            if is_last { "└── " } else { "├── " }
+        };
+        let branch_color: String = if no_color {
+            branch_glyph
+        } else {
+            theme_branch_color(theme) + branch_glyph + reset
+        };
 
         let sz: Int = if !is_dir { fs_file_size(fs, full) } else { 0 };
-        let size_str: String = if show_sizes && !is_dir { format_size_badge(sz) } else { "" };
-        let styled_name: String = style_entity_name(name, is_dir);
+        let size_str: String = if show_sizes && !is_dir { format_size_badge(sz, no_color) } else { "" };
+        let display_name: String = if full_path { full } else { name };
+        let styled_name: String = style_entity_name(display_name, is_dir, no_color, theme);
 
         println(prefix + branch_color + size_str + styled_name);
 
         if is_dir {
             cur.dirs = cur.dirs + 1;
             if depth < max_depth {
-                let next_indent: String = if is_last { "    " } else { esc + "[38;5;240m│   " + reset };
+                let next_indent: String = if is_last {
+                    "    "
+                } else {
+                    if use_ascii {
+                        if no_color { "|   " } else { theme_branch_color(theme) + "|   " + reset }
+                    } else {
+                        if no_color { "│   " } else { theme_branch_color(theme) + "│   " + reset }
+                    }
+                };
                 cur = render_tree_path(
-                    fs, full, prefix + next_indent, depth + 1, max_depth, show_all, dirs_only, show_sizes, cur
+                    fs, full, prefix + next_indent, depth + 1, max_depth,
+                    show_all, dirs_only, show_sizes, use_ascii, no_color, full_path, theme, cur
                 );
             }
         } else {
             cur.files = cur.files + 1;
+            if sz > 0 { cur.total_bytes = cur.total_bytes + sz; }
         }
         i = i + 1;
     }
@@ -91,7 +118,8 @@ pub fn build_tree_text_recursive(
     depth: Int,
     max_depth: Int,
     show_all: Bool,
-    dirs_only: Bool
+    dirs_only: Bool,
+    use_ascii: Bool
 ) -> String {
     let children: List[String] = collect_children(fs, dir_path, show_all, dirs_only);
     let n: Int = list_len(children);
@@ -103,13 +131,21 @@ pub fn build_tree_text_recursive(
         let full: String = join_line_path(dir_path, name);
         let is_dir: Bool = fs_is_dir(fs, full);
         let is_last: Bool = (i == n - 1);
-        let branch: String = if is_last { "└── " } else { "├── " };
+        let branch: String = if use_ascii {
+            if is_last { "\\-- " } else { "|-- " }
+        } else {
+            if is_last { "└── " } else { "├── " }
+        };
         out = out + prefix + branch + name + "\n";
 
         if is_dir && depth < max_depth {
-            let next_indent: String = if is_last { "    " } else { "│   " };
+            let next_indent: String = if is_last {
+                "    "
+            } else {
+                if use_ascii { "|   " } else { "│   " }
+            };
             out = out + build_tree_text_recursive(
-                fs, full, prefix + next_indent, depth + 1, max_depth, show_all, dirs_only
+                fs, full, prefix + next_indent, depth + 1, max_depth, show_all, dirs_only, use_ascii
             );
         }
         i = i + 1;

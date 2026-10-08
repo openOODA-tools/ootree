@@ -1,0 +1,57 @@
+// # JSON Formatter - Structured Tree Hierarchy Serialization
+//
+// Logline: Serializes directory statistics and entry trees into standard JSON.
+//
+// Setup: Pure serialization utilities. Zero ambient authority.
+//
+// Beats:
+//   1. Escape special JSON characters and strings.
+//   2. Serialize aggregate directory tree metrics into JSON.
+//   3. Serialize list of directory entry paths into JSON array.
+
+import "tree/entry.oo";
+
+pub fn json_escape_str(s: String) -> String {
+    let n: Int = chars_len(s);
+    let mut out: String = "";
+    let mut i: Int = 0;
+    while i < n {
+        let c: String = char_at(s, i);
+        if c == "\\" {
+            out = out + "\\\\";
+        } else if c == "\"" {
+            out = out + "\\\"";
+        } else if c == "\n" {
+            out = out + "\\n";
+        } else if c == "\r" {
+            out = out + "\\r";
+        } else if c == "\t" {
+            out = out + "\\t";
+        } else {
+            out = out + c;
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+pub fn render_tree_stats_json(path: String, stats: TreeStats) -> String {
+    return "{\"path\":\"" + json_escape_str(path) +
+        "\",\"directories\":" + to_string(stats.dirs) +
+        ",\"files\":" + to_string(stats.files) +
+        ",\"total_entries\":" + to_string(stats.dirs + stats.files) +
+        ",\"total_bytes\":" + to_string(stats.total_bytes) + "}";
+}
+
+pub fn render_tree_entries_json(path: String, entries: List[String]) -> String {
+    let n: Int = list_len(entries);
+    let mut items: String = "[";
+    let mut i: Int = 0;
+    while i < n {
+        if i > 0 { items = items + ","; }
+        items = items + "\"" + json_escape_str(list_get(entries, i)) + "\"";
+        i = i + 1;
+    }
+    items = items + "]";
+    return "{\"path\":\"" + json_escape_str(path) + "\",\"count\":" + to_string(n) + ",\"entries\":" + items + "}";
+}

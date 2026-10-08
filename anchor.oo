@@ -8,7 +8,10 @@
 //   1. Re-export tree hierarchy anchor.
 //   2. Re-export render formatting anchor.
 //   3. Re-export ipc communication anchor.
+//   4. Expose top-level unified namespace.
 
 import "tree/anchor.oo";
 import "render/anchor.oo";
 import "ipc/anchor.oo";
+
+// Sovereign openOODA tree hierarchy inspection and MCP agent tooling root surface.

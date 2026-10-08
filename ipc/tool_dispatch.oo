@@ -1,0 +1,114 @@
+// # MCP Tool Dispatcher - Filesystem Inspection Capabilities
+//
+// Logline: Routes and executes MCP tools for filesystem trees and directory capacity.
+//
+// Setup: Requires FsReadCap. Zero ambient authority.
+//
+// Beats:
+//   1. Dispatch tree_structure, tree_summary, find_entries, and directory_capacity tools.
+//   2. Validate required arguments and reject malformed schemas with -32602.
+//   3. Format tool execution results as standard MCP JSON-RPC content items.
+//   4. Map missing tools to -32601 JSON-RPC errors.
+
+import "tree/anchor.oo";
+import "render/anchor.oo";
+import "json_field.oo";
+
+pub fn build_error(id: String, code: Int, msg: String) -> String {
+    return "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"error\":{\"code\":" + to_string(code) + ",\"message\":\"" + json_escape(msg) + "\"}}";
+}
+
+pub fn build_tool_result(id: String, text: String) -> String {
+    return "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"" + json_escape(text) + "\"}]}}";
+}
+
+fn parse_clean_int(raw: String, default_val: Int) -> Int {
+    let trimmed: String = str_trim(raw);
+    let n: Int = chars_len(trimmed);
+    if n == 0 { return default_val; }
+    let mut val: Int = 0;
+    let mut i: Int = 0;
+    while i < n {
+        let b: Int = byte_at(char_at(trimmed, i), 0);
+        if b >= 48 && b <= 57 {
+            val = val * 10 + (b - 48);
+        } else {
+            return if i == 0 { default_val } else { val };
+        }
+        i = i + 1;
+    }
+    return val;
+}
+
+pub fn dispatch_tool_call(fs: &FsReadCap, id: String, req: String) -> String {
+    let params: String = json_field_raw(req, "params");
+    let tool_name: String = json_field_string(params, "name");
+    let args: String = json_field_raw(params, "arguments");
+
+    if tool_name == "tree_structure" {
+        let path_arg: String = json_field_string(args, "path");
+        let root_path: String = if chars_len(path_arg) == 0 { "." } else { path_arg };
+        let depth_raw: String = json_field_raw(args, "depth");
+        let max_depth: Int = parse_clean_int(depth_raw, 5);
+        let show_hidden_raw: String = json_field_raw(args, "show_hidden");
+        let show_hidden: Bool = (show_hidden_raw == "true");
+        let ascii_raw: String = json_field_raw(args, "ascii");
+        let use_ascii: Bool = (ascii_raw == "true");
+
+        let tree_text: String = build_tree_text_recursive(
+            fs, root_path, "", 0, max_depth, show_hidden, false, use_ascii
+        );
+        let out: String = root_path + "\n" + tree_text;
+        return build_tool_result(id, out);
+    }
+
+    if tool_name == "tree_summary" {
+        let path_arg: String = json_field_string(args, "path");
+        let root_path: String = if chars_len(path_arg) == 0 { "." } else { path_arg };
+        let stats: TreeStats = count_tree_metrics(fs, root_path, 0, 9999, false, false, make_tree_stats());
+        let out: String = render_tree_stats_json(root_path, stats);
+        return build_tool_result(id, out);
+    }
+
+    if tool_name == "find_entries" {
+        let has_pattern: String = json_field_raw(args, "pattern");
+        if chars_len(has_pattern) == 0 {
+            return build_error(id, -32602, "missing required parameter: pattern");
+        }
+        let pattern: String = json_field_string(args, "pattern");
+        let path_arg: String = json_field_string(args, "path");
+        let root_path: String = if chars_len(path_arg) == 0 { "." } else { path_arg };
+        let depth_raw: String = json_field_raw(args, "max_depth");
+        let max_depth: Int = parse_clean_int(depth_raw, 10);
+        let show_hidden_raw: String = json_field_raw(args, "show_hidden");
+        let show_hidden: Bool = (show_hidden_raw == "true");
+
+        let matches: List[String] = find_tree_entries(fs, root_path, pattern, 0, max_depth, show_hidden);
+        let out: String = render_tree_entries_json(root_path, matches);
+        return build_tool_result(id, out);
+    }
+
+    if tool_name == "directory_capacity" {
+        let path_arg: String = json_field_string(args, "path");
+        let root_path: String = if chars_len(path_arg) == 0 { "." } else { path_arg };
+        let stats: TreeStats = count_tree_metrics(fs, root_path, 0, 9999, true, false, make_tree_stats());
+        let avg_bytes: Int = if stats.files > 0 { stats.total_bytes / stats.files } else { 0 };
+        let out: String = "{\"path\":\"" + json_escape_str(root_path) +
+            "\",\"total_bytes\":" + to_string(stats.total_bytes) +
+            ",\"formatted_size\":\"" + format_size(stats.total_bytes) +
+            "\",\"directories\":" + to_string(stats.dirs) +
+            ",\"files\":" + to_string(stats.files) +
+            ",\"avg_file_bytes\":" + to_string(avg_bytes) + "}";
+        return build_tool_result(id, out);
+    }
+
+    return build_error(id, -32601, "unknown tool: " + tool_name);
+}
+
+pub fn render_tools_list_json(id: String) -> String {
+    let t1: String = "{\"name\":\"tree_structure\",\"description\":\"Generate formatted directory hierarchy tree\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"depth\":{\"type\":\"integer\"},\"show_hidden\":{\"type\":\"boolean\"},\"ascii\":{\"type\":\"boolean\"}}}}";
+    let t2: String = "{\"name\":\"tree_summary\",\"description\":\"Count directories, files, and total bytes in hierarchy\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}}}}";
+    let t3: String = "{\"name\":\"find_entries\",\"description\":\"Search directory entries matching a pattern substring\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"pattern\":{\"type\":\"string\"},\"max_depth\":{\"type\":\"integer\"},\"show_hidden\":{\"type\":\"boolean\"}},\"required\":[\"pattern\"]}}";
+    let t4: String = "{\"name\":\"directory_capacity\",\"description\":\"Inspect aggregate disk usage and file distribution\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}}}}";
+    return "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"result\":{\"tools\":[" + t1 + "," + t2 + "," + t3 + "," + t4 + "]}}";
+}

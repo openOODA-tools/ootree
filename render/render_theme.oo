@@ -7,7 +7,8 @@
 // Beats:
 //   1. Resolve theme name from OODA_THEME or ~/.openooda/theme.oot with fallback.
 //   2. Map filesystem entity types (directories, code, archives) to ANSI color codes.
-//   3. Provide terminal styling primitives for branch rendering.
+//   3. Provide theme-specific branch and directory color palettes.
+//   4. Support uncolored mode for pipe and plain output.
 
 import "std/fs/process/env.oo";
 
@@ -54,7 +55,8 @@ pub fn parse_theme_key(content: String, key: String) -> String {
     return "";
 }
 
-pub fn resolve_tree_theme(fs: &FsReadCap, env: &EnvCap) -> String {
+pub fn resolve_tree_theme(fs: &FsReadCap, env: &EnvCap, override_name: String) -> String {
+    if chars_len(override_name) > 0 { return override_name; }
     let env_t: Result[String, String] = env_get(env, "OODA_THEME");
     if env_t.is_ok() {
         let t: String = match env_t { Ok(s) => s, Err(_) => "" };
@@ -72,17 +74,37 @@ pub fn resolve_tree_theme(fs: &FsReadCap, env: &EnvCap) -> String {
     }
     let p: String = if str_ends_with(home, "/") { home + ".openooda/theme.oot" } else { home + "/.openooda/theme.oot" };
     let r: Result[String, String] = read_file(fs, p);
-    if r.is_err() { return "classic/1982"; }
+    if r.is_err() { return "classic"; }
     let content: String = match r { Ok(s) => s, Err(_) => "" };
     let t: String = parse_theme_key(content, "theme");
-    return if t != "" { t } else { "classic/1982" };
+    return if t != "" { t } else { "classic" };
 }
 
-pub fn style_entity_name(name: String, is_dir: Bool) -> String {
+pub fn theme_dir_color(theme: String) -> String {
+    let esc: String = ansi_esc();
+    if str_index_of(theme, "dracula") >= 0 { return esc + "[1;35m"; }
+    if str_index_of(theme, "cyberpunk") >= 0 { return esc + "[1;33m"; }
+    if str_index_of(theme, "amber") >= 0 { return esc + "[1;33m"; }
+    if str_index_of(theme, "nord") >= 0 { return esc + "[1;34m"; }
+    if str_index_of(theme, "matrix") >= 0 { return esc + "[1;32m"; }
+    return esc + "[1;34m";
+}
+
+pub fn theme_branch_color(theme: String) -> String {
+    let esc: String = ansi_esc();
+    if str_index_of(theme, "cyberpunk") >= 0 { return esc + "[36m"; }
+    if str_index_of(theme, "amber") >= 0 { return esc + "[33m"; }
+    if str_index_of(theme, "matrix") >= 0 { return esc + "[32m"; }
+    if str_index_of(theme, "dracula") >= 0 { return esc + "[38;5;244m"; }
+    return esc + "[38;5;240m";
+}
+
+pub fn style_entity_name(name: String, is_dir: Bool, no_color: Bool, theme: String) -> String {
+    if no_color { return name; }
     let esc: String = ansi_esc();
     let reset: String = term_reset();
     if is_dir {
-        return esc + "[1;34m" + name + reset;
+        return theme_dir_color(theme) + name + reset;
     }
     if str_ends_with(name, ".oo") || str_ends_with(name, ".oot") {
         return esc + "[1;36m" + name + reset;

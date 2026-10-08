@@ -8,7 +8,10 @@
 //   1. Re-export entry models and string comparison.
 //   2. Re-export child filtering and ordering.
 //   3. Re-export tree metric counting logic.
+//   4. Expose unified interface for external packages.
 
 import "entry.oo";
 import "filter.oo";
 import "scan.oo";
+
+// Canonical public surface for directory tree traversal and filtering.

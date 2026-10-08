@@ -1,3 +1,9 @@
+ootree (0.2.0-1) stable; urgency=low
+
+  * Sovereign elevation: streaming object-boundary MCP framing, 4 MCP tools, ASCII glyphs, and JSON export.
+
+ -- openOODA-tools <ops@openooda.org>  Wed, 07 Oct 2026 18:00:00 -1000
+
 ootree (0.1.0-1) stable; urgency=low
 
   * Initial sovereign release: directory tree visualization, oote palette styling, and MCP stdio surface.

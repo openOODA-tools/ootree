@@ -1,12 +1,17 @@
 // # Render Subsystem Anchor
 //
-// Logline: Re-exports terminal theme hydration and tree branch formatters.
+// Logline: Re-exports terminal theme hydration, tree branch formatters, and JSON encoders.
 //
 // Setup: Pure shim re-exporting render domain pages.
 //
 // Beats:
 //   1. Re-export terminal palette resolution and entity styling.
 //   2. Re-export recursive tree branch layout formatter.
+//   3. Re-export structured JSON serialization routines.
+//   4. Expose unified interface for external packages.
 
 import "render_theme.oo";
 import "format_tree.oo";
+import "render_json.oo";
+
+// Canonical public surface for directory tree formatting and visual styling.

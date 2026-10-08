@@ -12,11 +12,12 @@
 
 pub type TreeStats = struct {
     dirs: Int,
-    files: Int
+    files: Int,
+    total_bytes: Int
 };
 
 pub fn make_tree_stats() -> TreeStats {
-    return TreeStats { dirs: 0, files: 0 };
+    return TreeStats { dirs: 0, files: 0, total_bytes: 0 };
 }
 
 fn code_of(c: String) -> Int {
